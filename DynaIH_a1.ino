@@ -1,3 +1,8 @@
+/*
+ Author:          propsman
+ Program:         DynaIH_a1.c
+ Purpose:         Control an induction heater using PWM and monitor the power source.
+*/
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -24,13 +29,12 @@ const int vBatt = A0;     // Battery voltage after divider
 // Button de-bounce vars           
 bool lastButtonState = LOW; 
 unsigned long lastDebounceTime = 0;  
-unsigned char debounceDelay = 25;
+const unsigned char debounceDelay = 25;
 
 // Battery data vars
 short unsigned int battVoltage[ARRAY_SIZE]; // Holds battery voltage readings
 short unsigned int sagVoltage = 680; // Holds lowest battery voltage reading 
 short unsigned int setPoint_External = 1; // Used for UI
-float setPoints_Internal[10];
 float setPoint_Internal = ((setPoint_External) - 1) * ((BATT_MIN / BATT_MAX) - (ABSOLUTE_MIN / BATT_MAX)) / (10 - 1) + (ABSOLUTE_MIN / BATT_MAX); // internal use maps the 1 - 10 range to percentage 
 short unsigned int resolution = 0;// resault of display width and array size used for screen visuals
 int lastPwmVal; // Holds previous calculated PWM value, used for filtering
@@ -44,10 +48,10 @@ int battPercent = 0; // Holds battery life percentage, used for battery display
 int visualization = 1; // Holds current visualization
 const char numOfVisualization = 2; // Holds total number of visualisations
 int stealth = 0; // bool to toggler "stealth" mode
-bool powerSource = false; // false = battery, true = mains
+int powerSource = 1; // 1 = battery, 2 = mains
 
 typedef struct{  
-  int pin;
+  const int pin;
   int buttonCounterTimeOut;
   bool waiting;  
   bool pressed;
@@ -80,7 +84,7 @@ timer buttonHoldIncrementTimer = {.interval = 200};
 timer mainButtonSequenceTimer = {.interval = 300};
 timer lazyVoltageCheckTimer = {.interval = 500};
 timer crazyVoltageCheckTimer = {.interval = 2};
-timer screenUpdateTimer = {.interval = 16};
+timer screenUpdateTimer = {.interval = 32};
 
 // screen layout vars - split into 8(2col 4 row) sectors each with an X and Y var
 unsigned short int S1_X = 0;
@@ -152,6 +156,17 @@ static const unsigned char PROGMEM battOutline[] =
   B10000000, B00000000, B00000000, B00000000, B00000000, B00000100,
   B01111111, B11111111, B11111111, B11111111, B11111111, B11111100,
 };
+static const unsigned char PROGMEM MainsAdapter[] =
+{ 
+  B00000000, B00000000, B00000000, B11000000, B00000001, B11000000,
+  B00000000, B00000000, B00000011, B11110000, B00000111, B11111110,
+  B00000000, B00000000, B00001111, B00111100, B00001111, B11111110,
+  B11111111, B00000000, B00111100, B00001111, B11111111, B11000000,
+  B11111111, B11000000, B11110000, B00000011, B11111111, B11000000,
+  B00000000, B11110011, B11000000, B00000000, B00001111, B11111110,
+  B00000000, B00111111, B00000000, B00000000, B00000111, B11111110,
+  B00000000, B00001100, B00000000, B00000000, B00000001, B11000000,
+};
 static const unsigned char PROGMEM dynaLogo[] =
 {
   B11110011, B10011000, B01001100, B01100111, B11000000,
@@ -185,6 +200,7 @@ void setup() {
 }
 
 void loop() {
+  //screenSaver();
   display.clearDisplay();
   button* temp = checkButton(&mainButton);
   while(stealth > 0){
@@ -209,7 +225,7 @@ void loop() {
     }
   }
   
-  if(mainButton.waiting == false){
+  if(temp->waiting == false){
     switch(mainMenu.currentState){
       case 1://Main screen
         updateMenu(&mainButton, &mainMenu, 1, 1);
@@ -401,7 +417,7 @@ void visual(int mode,int xPos, int yPos, int width, int height){
       display.drawLine(i * resolution + xPos, temp + yPos, (i * resolution) + resolution + xPos, temp2 + yPos, WHITE);    
     }
     writeText(4, 36, 1, "float", 0, BATT_MAX * setPoint_Internal, false);
-    writeText(6, 36, 1, "float", 0, (((float)graphHigh - (float)graphLow)/((float)ANALOG_MAX - (float)ANALOG_MIN)) * (float)BATT_MAX, false);
+    writeText(6, 36, 1, "float", 0, (((float)graphHigh - (float)graphLow) / (float)ANALOG_MAX) * (float)BATT_MAX, false);     
     writeText(8, 36, 1, "float", 0, ((float)battVoltage[ARRAY_SIZE - 1] / (float)ANALOG_MAX) * (float)BATT_MAX, false);   
   }else if(mode == 2){
     int j = 0;
@@ -568,17 +584,25 @@ int  updateMenu(button* buttonToCheck, menu* menuToUpdate, int intervalUp, int i
 
 //-----------------------------------------------------------------------------------------------------------------
 void infoBar(){
-  display.setTextColor(WHITE); 
-  display.drawBitmap(S1_X, S1_Y, battOutline, 48, 8, WHITE);
-  if(battPercent >= 25){ 
-    display.drawBitmap(S1_X + 2, S1_Y, battBar1, 16, 8, WHITE);
-      if(battPercent > 50){
-        display.drawBitmap(S1_X + 16, S1_Y, battBar2, 16, 8, WHITE);
-          if(battPercent > 75){
-            display.drawBitmap(S1_X + 30, S1_Y, battBar3, 16, 8, WHITE);
+  display.setTextColor(WHITE);
+  switch(powerSource){
+    case 1: 
+      display.drawBitmap(S1_X, S1_Y, battOutline, 48, 8, WHITE);
+      if(battPercent >= 25){ 
+        display.drawBitmap(S1_X + 2, S1_Y, battBar1, 16, 8, WHITE);
+          if(battPercent > 50){
+            display.drawBitmap(S1_X + 16, S1_Y, battBar2, 16, 8, WHITE);
+              if(battPercent > 75){
+                display.drawBitmap(S1_X + 30, S1_Y, battBar3, 16, 8, WHITE);
+              }
           }
       }
-  }   
+      break;
+        
+    case 2:
+      display.drawBitmap(S1_X, S1_Y, MainsAdapter, 48, 8, WHITE);
+      break;
+  }    
   if(battPercent < 10){
     display.setTextSize(1);
     display.setCursor(3,0);
@@ -604,3 +628,38 @@ void powerLevelIndicator(){
 }
 
 //-----------------------------------------------------------------------------------------------------------------
+
+void screenSaver(){
+  int screenSaver = 1;
+  int x = 1;
+  int Vx = random(-10,10);
+  int y = 1;
+  int Vy = random(-10,10);
+  analogWrite(relayPin,0);
+  while(screenSaver == 1){
+    button* temp = checkButton(&mainButton);   
+    if(temp->waiting == false){     
+      if(temp->sequence == 3){
+        screenSaver = 0;
+      }
+    }
+    if(incrementTimer(&screenUpdateTimer) == true){
+            
+      display.clearDisplay();
+      int w = 40;
+      int h = 8;
+      x = x + Vx;
+      y = y + Vy;
+      display.drawBitmap(x, y, dynaLogo, 40, 8, WHITE);  
+      if(x < 0 || x > display.width() - w){
+        Vx = -Vx;
+        x = x + Vx;
+      }
+      if(y < 0 || y > display.height() - h){
+        Vy = -Vy;
+        y = y + Vy;
+      }     
+      display.display();
+    }
+  }
+}
