@@ -1,4 +1,3 @@
-//#include <arduinoFFT.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -605,8 +604,3 @@ void powerLevelIndicator(){
 }
 
 //-----------------------------------------------------------------------------------------------------------------
-
-// display.something(W,H)
-
-  //Serial.print("Main loop - menu = ");
-  //Serial.println(menu); 
