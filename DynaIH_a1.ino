@@ -1,7 +1,7 @@
 /*
  Author:          propsman
- Program:         DynaIH_a1.c
- Purpose:         Control an induction heater using PWM and monitor the power source.
+ Program:         DynaIH_a1.c - this in development 
+ Purpose:         Control an induction heater using PWM and monitor the power source. 
 */
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -13,7 +13,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 #if (SSD1306_LCDHEIGHT != 32)
 #error("Height incorrect, please fix Adafruit_SSD1306.h!");
 #endif
-#define BATT_MAX 12.6   // Max Charge Voltage. 
+#define BATT_MAX 12.6   // Max Charge Voltage of battery. 
 #define BATT_MIN 9.6    // Minimum "safe" Battery Voltage - Used to determine Highest power setting voltage.
 #define ABSOLUTE_MIN 5  // Used to determine lowest power setting voltage.
 #define ANALOG_MAX 830  // This should be the analog reading of BATT_MAX voltage, can vary on voltage divider or battery.  
@@ -32,23 +32,23 @@ unsigned long lastDebounceTime = 0;
 const unsigned char debounceDelay = 25;
 
 // Battery data vars
-short unsigned int battVoltage[ARRAY_SIZE]; // Holds battery voltage readings
-short unsigned int sagVoltage = 680; // Holds lowest battery voltage reading 
-short unsigned int setPoint_External = 1; // Used for UI
+int battVoltage[ARRAY_SIZE]; // Holds battery voltage readings
+int sagVoltage = 680; // Holds lowest battery voltage reading 
+char setPoint_External = 1; // Used for UI
 float setPoint_Internal = ((setPoint_External) - 1) * ((BATT_MIN / BATT_MAX) - (ABSOLUTE_MIN / BATT_MAX)) / (10 - 1) + (ABSOLUTE_MIN / BATT_MAX); // internal use maps the 1 - 10 range to percentage 
 short unsigned int resolution = 0;// resault of display width and array size used for screen visuals
-int lastPwmVal; // Holds previous calculated PWM value, used for filtering
-int tuner = 0;
+unsigned char lastPwmVal; // Holds previous calculated PWM value, used for filtering
+char tuner = 0;
 
 // Menu and display vars
 short unsigned int graphHigh = 0; // Holds Highest value in array, use for scaling
 short unsigned int graphLow = ANALOG_MAX; // Holds Lowest value in array, use for scaling
-int fontSize = display.height() / 32; // Actually adjusting font size for screen size doesnt work--- so this is currently broken
-int battPercent = 0; // Holds battery life percentage, used for battery display 
-int visualization = 1; // Holds current visualization
+char fontSize = display.height() / 32; // Actually adjusting font size for screen size doesnt work--- so this is currently broken
+char battPercent = 0; // Holds battery life percentage, used for battery display 
+char visualization = 1; // Holds current visualization
 const char numOfVisualization = 2; // Holds total number of visualisations
-int stealth = 0; // bool to toggler "stealth" mode
-int powerSource = 1; // 1 = battery, 2 = mains
+char stealth = 0; // bool to toggler "stealth" mode
+char powerSource = 1; // 1 = battery, 2 = mains
 
 typedef struct{  
   const int pin;
@@ -60,16 +60,11 @@ typedef struct{
 }button;// typeFlag = 0
 
 typedef struct{
-  int interval; 
+  unsigned int interval; 
   unsigned long timer; 
   unsigned long previous;
   bool waiting;
 }timer;// typeFlag = 1
-
-typedef struct{  
-  int val[ARRAY_SIZE];
-  int updateInterval;
-}sensor;// typeFlag = 2
 
 typedef struct{  
   int currentState;
@@ -207,7 +202,7 @@ void loop() {
     button* temp = checkButton(&mainButton);   
     if(temp->waiting == false){
       if(temp->pressed == true){
-        if(incrementTimer(&crazyVoltageCheckTimer) == true){
+        if(incrementTimer(&crazyVoltageCheckTimer, 0) == true){
               voltageTest(temp->pressed);
             }
         analogWrite(relayPin,getPWM(battVoltage[ARRAY_SIZE - 1]));
@@ -219,7 +214,7 @@ void loop() {
         Serial.println(temp->sequence);
         Serial.println(stealth);
       }
-      if(incrementTimer(&lazyVoltageCheckTimer) == true){
+      if(incrementTimer(&lazyVoltageCheckTimer, 0) == true){
         voltageTest(temp->pressed);
       }
     }
@@ -232,11 +227,11 @@ void loop() {
         if(mainButton.pressed == true){
           analogWrite(relayPin,getPWM(battVoltage[ARRAY_SIZE - 1]));
           digitalWrite(ledPin,HIGH);
-          if(incrementTimer(&crazyVoltageCheckTimer) == true){
+          if(incrementTimer(&crazyVoltageCheckTimer, 0) == true){
             voltageTest(temp->pressed);
           }
         }else{
-          if(incrementTimer(&lazyVoltageCheckTimer) == true){
+          if(incrementTimer(&lazyVoltageCheckTimer, 0) == true){
             voltageTest(temp->pressed);
           }
           analogWrite(relayPin,0);
@@ -248,7 +243,7 @@ void loop() {
       case 2://Power adjust screen
         updateMenu(&mainButton, &mainMenu, 1, 1);
         if(temp->pressed == true){
-          if(incrementTimer(&buttonHoldIncrementTimer) == true){
+          if(incrementTimer(&buttonHoldIncrementTimer, 0) == true){
             setPoint_External++;
             if(setPoint_External >= 2){
             setPoint_Internal = ((setPoint_External) - 1) * ((BATT_MIN / BATT_MAX) - (ABSOLUTE_MIN / BATT_MAX)) / (10 - 1) + (ABSOLUTE_MIN / BATT_MAX);
@@ -271,7 +266,7 @@ void loop() {
         writeText(6, 0, 1, " Stealth", 0, 0, false);
         writeText(7, 0, 1, " About", 0, 0, false);
         if(temp->pressed == true){
-          if(incrementTimer(&buttonHoldIncrementTimer) == true){
+          if(incrementTimer(&buttonHoldIncrementTimer, 0) == true){
             settingsMenu.currentState++;
             if(settingsMenu.currentState >= 6){
               settingsMenu.currentState = 1;
@@ -311,9 +306,9 @@ void loop() {
         writeText(5, 0, 1, " Visual", 0, 0, false);
         writeText(6, 0, 1, "null", visualization, 0, false);
         if(temp->pressed == true){
-          if(incrementTimer(&buttonHoldIncrementTimer) == true){
+          if(incrementTimer(&buttonHoldIncrementTimer, 0) == true){
             visualization++;
-            if(visualization >= 3){
+            if(visualization > numOfVisualization){
               visualization = 1;
             }
           }
@@ -323,7 +318,23 @@ void loop() {
         
       case 5:// Power source selection screen
         updateMenu(&mainButton, &mainMenu, 0, settingsMenu.currentState);
-        writeText(5, 0, 1, " Power src", 0, 0, false);
+        writeText(5, 0, 1, "Power src =", 0, 0, false);
+        switch(powerSource){
+          case 1:
+              writeText(6, 0, 1, " Battery", 0, 0, false);
+            break;
+          case 2:
+              writeText(6, 0, 1, " 12v", 0, 0, false);
+            break;
+        }
+        if(temp->pressed == true){
+          if(incrementTimer(&buttonHoldIncrementTimer, 0) == true){
+            powerSource++;
+            if(powerSource >= 3){
+              powerSource = 1;
+            }
+          }
+        }
         infoBar();
         break;
         
@@ -401,12 +412,9 @@ int getPWM(int vBatt){
   lastPwmVal = pwmMaths;
   return pwmMaths;
 }
-// int pwmMaths = ((setPoint_Internal * ANALOG_MAX) / newVoltage ) * 255;
-//pwmMaths = ((6 * 680) / x) * 255;
-//    pwmMaths = constrain(TF2 * pwmMaths + (1 - TF2) * pwmVals[ARRAY_SIZE - 1], 1, 255);
+
 //---------------------------------------------------------------------------------------------------------------------------------
-void visual(int mode,int xPos, int yPos, int width, int height){
-  
+void visual(char mode,int xPos, int yPos, int width, int height){  
   if(mode == 1){
     width -= 24;
     height -= height / 4;
@@ -429,9 +437,6 @@ void visual(int mode,int xPos, int yPos, int width, int height){
       int temp = map(battVoltage[j], graphLow, graphHigh, height - 1, height / 4);
       int temp2 = (height / 4) + ((height - (height / 4))/2) + (temp / 4) * sin((i * PI) / resolution);
       display.drawPixel(i, temp2, WHITE);
-
-//      temp2 = (display.height() / 4) + ((display.height() - (display.height() / 4))/2) + -(temp / 4) * sin((i * PI) / resolution);
-//      display.drawPixel(i, temp2, WHITE);
     } 
   }
 }
@@ -515,18 +520,25 @@ void writeText(int sector, int offSet, int fontSize, String text, int var, float
 }
 
 //----------------------------------------------------------------------------------------------------------------
-bool incrementTimer(timer* timerToCheck){
-  timerToCheck->timer = millis();
-    if (timerToCheck->timer - timerToCheck->previous >= timerToCheck->interval){
-      timerToCheck->previous = timerToCheck->timer;
-      if (timerToCheck->waiting == LOW) {
-        timerToCheck->waiting = HIGH;
-        return true;
-      } else {
-        timerToCheck->waiting = LOW;  
-      }
-    } 
-  return false;
+bool incrementTimer(timer* timerToCheck, bool resetTimer){
+  switch(resetTimer){
+    case 0:
+      timerToCheck->timer = millis();
+        if(timerToCheck->timer - timerToCheck->previous >= timerToCheck->interval){
+          timerToCheck->previous = timerToCheck->timer;
+          if (timerToCheck->waiting == LOW) {
+            timerToCheck->waiting = HIGH;
+            return true;
+          }else{
+            timerToCheck->waiting = LOW;  
+          }
+        } 
+      return false;
+      break;
+    case 1:
+      timerToCheck->previous = millis();
+      break;
+  }
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -612,7 +624,8 @@ void infoBar(){
   display.setCursor(S2_X,S2_Y);
   display.print("Power =");
   display.setCursor(S2_X + 48 ,S2_Y);
-  display.print(setPoint_External);
+  int temp = setPoint_External;
+  display.print(temp);
 }
 
 //-----------------------------------------------------------------------------------------------------------------
@@ -643,7 +656,7 @@ void screenSaver(){
         screenSaver = 0;
       }
     }
-    if(incrementTimer(&screenUpdateTimer) == true){
+    if(incrementTimer(&screenUpdateTimer, 0) == true){
             
       display.clearDisplay();
       int w = 40;
