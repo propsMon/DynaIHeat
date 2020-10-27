@@ -195,7 +195,6 @@ void setup() {
 }
 
 void loop() {
-  //screenSaver();
   display.clearDisplay();
   button* temp = checkButton(&mainButton);
   while(stealth > 0){
@@ -357,15 +356,16 @@ void loop() {
         break;
               
       case 8:// Something IDK yet
-        updateMenu(&mainButton, &mainMenu, 0, settingsMenu.currentState);
-        writeText(5, 0, 1, " Something", 0, 0, false);
-        infoBar();
+        infoBar();    
+        writeText(5, 0, 1, " About", 0, 0, false);
+          if(temp->sequence == 3){
+              gameOfLife();
+          }
+        updateMenu(&mainButton, &mainMenu, 0, settingsMenu.currentState); 
         break;
         
       case 9:// About screen (jokes)
-        updateMenu(&mainButton, &mainMenu, 0, settingsMenu.currentState);
-        writeText(5, 0, 1, " About", 0, 0, false);
-        infoBar();
+
         break;
     }  
    display.display(); 
@@ -674,5 +674,79 @@ void screenSaver(){
       }     
       display.display();
     }
+  }
+}
+
+//-----------------------------------------------------------------------------------------------------------------
+
+/*
+source: https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life
+Any live cell with fewer than two live neighbours dies, as if by underpopulation.
+Any live cell with two or three live neighbours lives on to the next generation.
+Any live cell with more than three live neighbours dies, as if by overpopulation.
+Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
+
+These rules, which compare the behavior of the automaton to real life, can be condensed into the following:
+
+Any live cell with two or three live neighbours survives.
+Any dead cell with three live neighbours becomes a live cell.
+All other live cells die in the next generation. Similarly, all other dead cells stay dead
+*/
+
+void gameOfLife(){
+  display.clearDisplay(); 
+  display.display();
+  display.drawBitmap(display.width() / 2 - 20, display.height() / 2 - 4, dynaLogo, 40, 8, WHITE); 
+  display.display(); 
+  delay(3000);
+  while(true){
+  for(int y = 0; y < display.height() - 1; y++){
+    for(int x = 0; x < display.width() - 1; x++){
+      int pixelState = display.getPixel(x,y);     
+      int neighbors = 0;
+      for(int k = -1; k <= 1; k++){
+        int y2 = y + k;
+        for(int l = -1; l <= 1; l++){
+          int x2 = x + l;       
+          int temp = display.getPixel(x2,y2);
+          switch(temp){
+            case 0:          
+              break;
+            case 1: 
+              neighbors++;               
+              break;
+          }         
+        }
+      }
+      if(pixelState == 1){
+        neighbors -= 1;
+      }
+      switch(neighbors){
+        case 2:       
+          break;
+          
+        case 3:
+          switch(pixelState){
+            case 0:
+                display.drawPixel(x, y, WHITE);
+              break;
+            case 1:                
+              break;
+          }
+          break;
+
+        default:
+          switch(pixelState){
+            case 0:           
+              break;
+            case 1:
+              display.drawPixel(x, y, BLACK);
+              break;
+          }                                   
+          break;
+      }                             
+    }
+  }
+  display.display();
   }
 }
